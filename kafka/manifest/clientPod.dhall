@@ -1,8 +1,8 @@
 let k8s =
-      https://raw.githubusercontent.com/dhall-lang/dhall-kubernetes/master/package.dhall sha256:532e110f424ea8a9f960a13b2ca54779ddcac5d5aa531f86d82f41f8f18d7ef1
+      https://raw.githubusercontent.com/dhall-lang/dhall-kubernetes/master/1.19/package.dhall sha256:6774616f7d9dd3b3fc6ebde2f2efcafabb4a1bf1a68c0671571850c1d138861f
 
 let union =
-      https://raw.githubusercontent.com/dhall-lang/dhall-kubernetes/master/typesUnion.dhall sha256:765d1b084fb57e29471622b85b9b43d65a5baef3427bc1bfbfdaaf1e40c8e813
+      https://raw.githubusercontent.com/dhall-lang/dhall-kubernetes/master/1.19/typesUnion.dhall sha256:827f0423034337f5a27b99cb30c56229fa8d35ea58d15a0f5a2d5de66bb86142
 
 let SaslMechanisms = ./kafka/manifest/saslMechanisms.dhall
 let kafka = ./kafka/manifest/types.dhall

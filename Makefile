@@ -3,37 +3,39 @@
 
 args = `arg="$(filter-out $@,$(MAKECMDGOALS))" && echo $${arg:-${1}}`
 
-NAMESPACE=kafka
+export NAMESPACE=kafka
 
 ## Kafka
 PLAIN_RELEASE=plain
 KRB_RELEASE=krb
+export REALM = "EXAMPLE.COM"
 
 create-namespace:
 	kubectl create ns $(NAMESPACE) || exit 0
 
+to-dhall:
+	# yaml-to-dhall '(./krb/types.dhall).KrbServer' --file ./krb/my-krb-server-1.yaml	 
+	yaml-to-dhall '(./krb/types.dhall).Principals' --file ./krb/my-principals-1.yaml	 
+
 ######################### Dev Kerberos for K8s ####################################################################
-deploy-krb-operator:
-	export NAMESPACE=$(NAMESPACE)
+deploy-krb-operator:	
 	wget -O- -q https://raw.githubusercontent.com/novakov-alexey/krb-operator/master/manifest/rbac.dhall | dhall-to-yaml | kubectl create -n $(NAMESPACE) -f -
 	wget -O- -q https://raw.githubusercontent.com/novakov-alexey/krb-operator/master/manifest/kube-deployment.dhall | \
     	dhall-to-yaml | kubectl create -n $(NAMESPACE) -f -
 
 undeploy-krb-operator:
 	wget -O- -q https://raw.githubusercontent.com/novakov-alexey/krb-operator/master/manifest/rbac.dhall | \
- 		NAMESPACE=${NAMESPACE} dhall-to-yaml | kubectl delete -n $(NAMESPACE) -f -
+ 		dhall-to-yaml | kubectl delete -n $(NAMESPACE) -f -
 	wget -O- -q https://raw.githubusercontent.com/novakov-alexey/krb-operator/master/manifest/kube-deployment.dhall | \
-		NAMESPACE=${NAMESPACE} dhall-to-yaml | kubectl delete -n $(NAMESPACE) -f -
+		dhall-to-yaml | kubectl delete -n $(NAMESPACE) -f -
 	kubectl delete crd krbservers.krb-operator.novakov-alexey.github.io
 	kubectl delete crd principalss.krb-operator.novakov-alexey.github.io
 
 deploy-krb-instance:
-	kubectl apply -f krb/my-krb-server-1.yaml -n $(NAMESPACE)
-	kubectl apply -f krb/my-principals-1.yaml -n $(NAMESPACE)
+	dhall-to-yaml --documents < ./krb/krb-instance.dhall | kubectl create -n $(NAMESPACE) -f -	
 
 undeploy-krb-instance:
-	kubectl delete -f krb/my-krb-server-1.yaml -n $(NAMESPACE)
-	kubectl delete -f krb/my-principals-1.yaml -n $(NAMESPACE)
+	dhall-to-yaml --documents < ./krb/krb-instance.dhall | kubectl delete -n $(NAMESPACE) -f -
 
 #################### KAFKA Deployment Common ###################################################################### 
 ###################################################################################################################
@@ -49,11 +51,11 @@ kafka-client-jks:
 	kubectl create secret generic kafka-client-jks \
 	  --from-file=keystore.jks=./kafka/secret/kafka.producer.keystore.jks \
 	  --from-file=truststore.jks=./kafka/secret/kafka.producer.truststore.jks -n $(NAMESPACE)
-kafka-create-configs: kafka-broker-jks kafka-client-jks
-	kubectl create -f ./krb/krb5.yaml -n $(NAMESPACE) || echo 'krb5.conf already exists, ignoring'
+kafka-create-configs: kafka-broker-jks kafka-client-jks	
+	dhall-to-yaml --documents < ./krb/krb5.dhall | kubectl create -n $(NAMESPACE) -f -
 	dhall-to-yaml --documents < ./kafka/manifest/brokerConf.dhall | kubectl create -n $(NAMESPACE) -f -
-kafka-delete-configs:
-	kubectl delete -f ./krb/krb5.yaml -n $(NAMESPACE)
+kafka-delete-configs:	
+	dhall-to-yaml --documents < ./krb/krb5.dhall | kubectl delete -n $(NAMESPACE) -f -
 	dhall-to-yaml --documents < ./kafka/manifest/brokerConf.dhall | kubectl delete -n $(NAMESPACE) -f -
 kafka-build-deps:
 	cd kafka/helm/cp-kafka && helm dep update
