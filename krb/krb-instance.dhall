@@ -2,15 +2,21 @@ let k8s =
       https://raw.githubusercontent.com/dhall-lang/dhall-kubernetes/master/1.19/package.dhall sha256:6774616f7d9dd3b3fc6ebde2f2efcafabb4a1bf1a68c0671571850c1d138861f
 
 let union = ./krb/typesUnion.dhall
+
 let KrbServer = ./krb/krbServerType.dhall
+
 let Principals = ./krb/principalsType.dhall
+
+let kdcRealm = env:REALM as Text
+
+let kdcHost = env:KDC_HOST as Text
 
 let myKrb
     : KrbServer
     = { apiVersion = "krb-operator.novakov-alexey.github.io/v1"
       , kind = "KrbServer"
-      , metadata = k8s.ObjectMeta::{ name = Some "my-krb1" }
-      , spec.realm = "EXAMPLE.COM"
+      , metadata = k8s.ObjectMeta::{ name = Some kdcHost }
+      , spec.realm = kdcRealm
       }
 
 let myPrincipals
@@ -19,10 +25,8 @@ let myPrincipals
       , kind = "Principals"
       , metadata = k8s.ObjectMeta::{
         , labels = Some
-            ( toMap
-                { `krb-operator.novakov-alexey.github.io/server` = "my-krb1" }
-            )
-        , name = Some "my-krb1"
+            (toMap { `krb-operator.novakov-alexey.github.io/server` = kdcHost })
+        , name = Some kdcHost
         }
       , spec.list
         =
@@ -45,8 +49,5 @@ let myPrincipals
 
 in  { apiVersion = "v1"
     , kind = "List"
-    , items =
-      [ union.KrbServer myKrb
-      , union.Principals myPrincipals      
-      ]
+    , items = [ union.KrbServer myKrb, union.Principals myPrincipals ]
     }

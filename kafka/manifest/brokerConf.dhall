@@ -1,16 +1,17 @@
-let kubernetes =
+let k8s =
       https://raw.githubusercontent.com/dhall-lang/dhall-kubernetes/master/package.dhall sha256:532e110f424ea8a9f960a13b2ca54779ddcac5d5aa531f86d82f41f8f18d7ef1
 
 let kafka = ./kafka/manifest/types.dhall
 
-let namespace = env:NAMESPACE as Text ? "test"
-let kdcRealm = env:REALM as Text ? "EXAMPLE.COM"
+let namespace = env:NAMESPACE as Text ? "kafka"
+
+let kdcRealm = env:REALM as Text
+
 let helmReleaseName = env:HELM_RELEASE_NAME ? "krb"
 
-let adminCred: kafka.Credentials = 
-  { name = "admin"
-  , password = "admin-secret"
-  }
+let adminCred
+    : kafka.Credentials
+    = { name = "admin", password = "admin-secret" }
 
 let kafkaPlainJaasConf =
       ''
@@ -58,24 +59,25 @@ let zkJaasConf =
 let jaasFileName = "jaas.conf"
 
 let plainKafkaCm =
-      kubernetes.ConfigMap::{
-      , metadata = kubernetes.ObjectMeta::{
+      k8s.ConfigMap::{
+      , metadata = k8s.ObjectMeta::{
         , name = Some "plain-kafka-jaas-configmap"
         }
       , data = Some [ { mapKey = jaasFileName, mapValue = kafkaPlainJaasConf } ]
       }
 
 let krbKafkaCm =
-      kubernetes.ConfigMap::{
-      , metadata = kubernetes.ObjectMeta::{
+      k8s.ConfigMap::{
+      , metadata = k8s.ObjectMeta::{
         , name = Some "krb-kafka-jaas-configmap"
         }
-      , data = Some [ { mapKey = jaasFileName, mapValue = kafkaGssApiJaasConf } ]
+      , data = Some
+        [ { mapKey = jaasFileName, mapValue = kafkaGssApiJaasConf } ]
       }
 
 let zkCm =
-      kubernetes.ConfigMap::{
-      , metadata = kubernetes.ObjectMeta::{ name = Some "zk-jaas-configmap" }
+      k8s.ConfigMap::{
+      , metadata = k8s.ObjectMeta::{ name = Some "zk-jaas-configmap" }
       , data = Some [ { mapKey = jaasFileName, mapValue = zkJaasConf } ]
       }
 

@@ -1,5 +1,7 @@
 # Kafka Security using Dhall
 
+Kafka deployment with SASL/SSL enabled security.
+
 This example is using:
 
 - [Confluent Helm charts](https://github.com/confluentinc/cp-helm-charts) for Kafka as base deployment. Helm charts are changed to support custom volumes in Statefulsets. Custom version is here: [kafka/helm](./kafka/helm)
@@ -19,8 +21,10 @@ Required software:
 
 ## Common steps
 
-Keytabs are coupled with Helm charts volumes (improvement is needed). You can create them manually as secrets or use Kerberos operator to start new 
-Kerberos server inside K8s (not for production use obviously).
+Keytabs are coupled with Helm charts volumes (improvement is needed). 
+You can create them manually as k8s secrets or use "Kerberos operator" to start new Kerberos server inside the K8s cluster (it is not for production use of course).
+
+Below steps are using [Kerberos operator](https://github.com/novakov-alexey/krb-operator) to create keytabs as K8s secrets.
 
 Start Kerberos operator:
 

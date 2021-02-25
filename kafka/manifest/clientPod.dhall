@@ -4,16 +4,29 @@ let k8s =
 let union =
       https://raw.githubusercontent.com/dhall-lang/dhall-kubernetes/master/1.19/typesUnion.dhall sha256:827f0423034337f5a27b99cb30c56229fa8d35ea58d15a0f5a2d5de66bb86142
 
-let SaslMechanisms = ./kafka/manifest/saslMechanisms.dhall
 let kafka = ./kafka/manifest/types.dhall
 
-let namespace = env:NAMESPACE as Text ? "test"
-let saslMechanism: SaslMechanisms = env:SASL_MECHANISM ? PLAIN
-let kdcRealm = env:REALM as Text ? "EXAMPLE.COM"
+let namespace = env:NAMESPACE as Text ? "kafka"
 
-let jaasCreds: kafka.Credentials = { name = "kafkabroker", password = "kafkabroker-secret" }
+let saslMechanism
+    : kafka.SaslMechanisms
+    = env:SASL_MECHANISM ? PLAIN
 
-let kafkaPath = "/etc/kafka"
+let kdcRealm = env:REALM as Text
+
+let jaasCreds
+    : kafka.Credentials
+    = { name = "kafkabroker", password = "kafkabroker-secret" }
+
+let filePaths
+    : kafka.FilePaths
+    = { parentDir = "/etc/kafka"
+      , clientProps = "client.properties"
+      , jaasConf = "jaas.conf"
+      , krbConf = "krb5.conf"
+      , producerScript = "producer.sh"
+      , consumerScript = "consumer.sh"
+      }
 
 let jaasPlainConf =
       ''
@@ -35,7 +48,7 @@ let jaasGssApiConf =
       KafkaClient {
         com.sun.security.auth.module.Krb5LoginModule required
         useKeyTab=true
-        keyTab="${kafkaPath}/keytabs/kafka-client.keytab"
+        keyTab="${filePaths.parentDir}/keytabs/kafka-client.keytab"
         storeKey=true
         useTicketCache=false
         serviceName="kafka"
@@ -60,10 +73,10 @@ let clientProps =
       sasl.kerberos.service.name=kafka
       security.protocol=SASL_SSL
 
-      ssl.truststore.location=${kafkaPath}/secrets/truststore.jks
+      ssl.truststore.location=${filePaths.parentDir}/secrets/truststore.jks
       ssl.truststore.password=${keystorePass}
 
-      ssl.keystore.location=${kafkaPath}/secrets/keystore.jks
+      ssl.keystore.location=${filePaths.parentDir}/secrets/keystore.jks
       ssl.keystore.password=${keystorePass}
 
       ssl.key.password=${keystorePass}
@@ -71,15 +84,13 @@ let clientProps =
       ''
 
 let cmName = "${id}-kafka-client-conf"
-let clientPropsFile = "client.properties"
-let jaasConfFile = "jaas.conf"
 
 let clientConfMap =
       k8s.ConfigMap::{
       , metadata = k8s.ObjectMeta::{ name = Some cmName }
       , data = Some
-        [ { mapKey = jaasConfFile, mapValue = jaasConf }
-        , { mapKey = clientPropsFile, mapValue = clientProps }
+        [ { mapKey = filePaths.jaasConf, mapValue = jaasConf }
+        , { mapKey = filePaths.clientProps, mapValue = clientProps }
         ]
       }
 
@@ -98,11 +109,7 @@ let mount =
       λ(name : Text) →
       λ(fileName : Text) →
       λ(path : Optional Text) →
-        mountTo "${kafkaPath}/${fileName}" name path
-
-let krbConfFile = "krb5.conf"
-let producerFile = "producer.sh"
-let consumerFile = "consumer.sh"
+        mountTo "${filePaths.parentDir}/${fileName}" name path
 
 let helmReleaseName = env:HELM_RELEASE_NAME as Text ? "plain"
 
@@ -110,7 +117,7 @@ let testScriptVariables =
       ''
       export ZOOKEEPERS=${helmReleaseName}-cp-zookeeper:2181
       export KAFKAS=${helmReleaseName}-cp-kafka-0.${helmReleaseName}-cp-kafka-headless.${namespace}.svc.cluster.local:9092             
-      export KAFKA_OPTS="-Djava.security.auth.login.config=${kafkaPath}/${jaasConfFile} -Dsun.security.krb5.debug=true -Djava.security.krb5.conf=/etc/${krbConfFile}"
+      export KAFKA_OPTS="-Djava.security.auth.login.config=${filePaths.parentDir}/${filePaths.jaasConf} -Dsun.security.krb5.debug=true -Djava.security.krb5.conf=/etc/${filePaths.krbConf}"
       ''
 
 let testTopic = "test-rep-one"
@@ -121,13 +128,13 @@ let producerScript =
       kafka-run-class org.apache.kafka.tools.ProducerPerformance --print-metrics \
         --topic ${testTopic} --num-records 6000000 --throughput 100000 --record-size 100 \
         --producer-props bootstrap.servers=$KAFKAS buffer.memory=67108864 batch.size=8196 \
-        --producer.config ${kafkaPath}/${clientPropsFile}
+        --producer.config ${filePaths.parentDir}/${filePaths.clientProps}
       ''
 
 let consumerScript =
       ''
       ${testScriptVariables}
-      kafka-console-consumer --topic ${testTopic} --bootstrap-server $KAFKAS --consumer.config ${kafkaPath}/${clientPropsFile}
+      kafka-console-consumer --topic ${testTopic} --bootstrap-server $KAFKAS --consumer.config ${filePaths.parentDir}/${filePaths.clientProps}
       ''
 
 let scriptCmName = "${id}-kafka-client-script-conf"
@@ -136,8 +143,8 @@ let testScriptConfMap =
       k8s.ConfigMap::{
       , metadata = k8s.ObjectMeta::{ name = Some scriptCmName }
       , data = Some
-        [ { mapKey = producerFile, mapValue = producerScript }
-        , { mapKey = consumerFile, mapValue = consumerScript }
+        [ { mapKey = filePaths.producerScript, mapValue = producerScript }
+        , { mapKey = filePaths.consumerScript, mapValue = consumerScript }
         ]
       }
 
@@ -151,16 +158,22 @@ let cmVolume =
         }
 
 let commonMounts =
-      [ mount "jaas-conf" jaasConfFile (Some jaasConfFile)
-      , mount "client-props" clientPropsFile (Some clientPropsFile)
-      , mount "producer-script" producerFile (Some producerFile)
-      , mount "consumer-script" consumerFile (Some consumerFile)
+      [ mount "jaas-conf" filePaths.jaasConf (Some filePaths.jaasConf)
+      , mount "client-props" filePaths.clientProps (Some filePaths.clientProps)
+      , mount
+          "producer-script"
+          filePaths.producerScript
+          (Some filePaths.producerScript)
+      , mount
+          "consumer-script"
+          filePaths.consumerScript
+          (Some filePaths.consumerScript)
       , mount "client-jks" "secrets" (None Text)
       ]
 
 let krbMounts =
       [ mount "client-keytab" "keytabs" (None Text)
-      , mountTo "/etc/${krbConfFile}" "krb5-conf" (Some krbConfFile)
+      , mountTo "/etc/${filePaths.krbConf}" "krb5-conf" (Some filePaths.krbConf)
       ]
 
 let podMounts =
@@ -171,19 +184,19 @@ let podMounts =
 let commonVolumes =
       [ k8s.Volume::{
         , name = "jaas-conf"
-        , configMap = Some (cmVolume cmName jaasConfFile)
+        , configMap = Some (cmVolume cmName filePaths.jaasConf)
         }
       , k8s.Volume::{
         , name = "client-props"
-        , configMap = Some (cmVolume cmName clientPropsFile)
+        , configMap = Some (cmVolume cmName filePaths.clientProps)
         }
       , k8s.Volume::{
         , name = "producer-script"
-        , configMap = Some (cmVolume scriptCmName producerFile)
+        , configMap = Some (cmVolume scriptCmName filePaths.producerScript)
         }
       , k8s.Volume::{
         , name = "consumer-script"
-        , configMap = Some (cmVolume scriptCmName consumerFile)
+        , configMap = Some (cmVolume scriptCmName filePaths.consumerScript)
         }
       , k8s.Volume::{
         , name = "client-jks"
@@ -202,7 +215,7 @@ let krbVolumes =
         }
       , k8s.Volume::{
         , name = "krb5-conf"
-        , configMap = Some (cmVolume "krb5-conf" krbConfFile)
+        , configMap = Some (cmVolume "krb5-conf" filePaths.krbConf)
         }
       ]
 
@@ -213,7 +226,10 @@ let podVolumes =
 
 let pod =
       k8s.Pod::{
-      , metadata = k8s.ObjectMeta::{ name = Some "${id}-kafka-client" }
+      , metadata = k8s.ObjectMeta::{
+        , name = Some "${id}-kafka-client"
+        , labels = Some (toMap { app = "cp-kafka-client" })
+        }
       , spec = Some k8s.PodSpec::{
         , containers =
           [ k8s.Container::{

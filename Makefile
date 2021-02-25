@@ -9,6 +9,7 @@ export NAMESPACE=kafka
 PLAIN_RELEASE=plain
 KRB_RELEASE=krb
 export REALM = "EXAMPLE.COM"
+export KDC_HOST = "my-krb1"
 
 create-namespace:
 	kubectl create ns $(NAMESPACE) || exit 0
