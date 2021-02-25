@@ -1,4 +1,4 @@
-# Kafka Security using Dhall
+# Kafka Security Configuration using Dhall
 
 Kafka deployment with SASL/SSL enabled security.
 
