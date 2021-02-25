@@ -1,7 +1,7 @@
 let k8s =
       https://raw.githubusercontent.com/dhall-lang/dhall-kubernetes/master/package.dhall sha256:532e110f424ea8a9f960a13b2ca54779ddcac5d5aa531f86d82f41f8f18d7ef1
 
-let kafka = ./kafka/manifest/types.dhall
+let kafka = ./kafka/dhall/types.dhall
 
 let namespace = env:NAMESPACE as Text ? "kafka"
 

@@ -4,7 +4,7 @@ let k8s =
 let union =
       https://raw.githubusercontent.com/dhall-lang/dhall-kubernetes/master/1.19/typesUnion.dhall sha256:827f0423034337f5a27b99cb30c56229fa8d35ea58d15a0f5a2d5de66bb86142
 
-let kafka = ./kafka/manifest/types.dhall
+let kafka = ./kafka/dhall/types.dhall
 
 let namespace = env:NAMESPACE as Text ? "kafka"
 
