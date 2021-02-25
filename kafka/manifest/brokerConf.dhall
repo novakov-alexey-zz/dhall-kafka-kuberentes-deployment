@@ -1,13 +1,16 @@
 let kubernetes =
       https://raw.githubusercontent.com/dhall-lang/dhall-kubernetes/master/package.dhall sha256:532e110f424ea8a9f960a13b2ca54779ddcac5d5aa531f86d82f41f8f18d7ef1
 
+let kafka = ./kafka/manifest/types.dhall
+
 let namespace = env:NAMESPACE as Text ? "test"
-
 let kdcRealm = env:REALM as Text ? "EXAMPLE.COM"
+let helmReleaseName = env:HELM_RELEASE_NAME ? "krb"
 
-let adminUser = "admin"
-
-let adminPassword = "admin-secret"
+let adminCred: kafka.Credentials = 
+  { name = "admin"
+  , password = "admin-secret"
+  }
 
 let kafkaPlainJaasConf =
       ''
@@ -21,12 +24,10 @@ let kafkaPlainJaasConf =
 
       Client {
         org.apache.zookeeper.server.auth.DigestLoginModule required
-        username="${adminUser}"
-        password="${adminPassword}";
+        username="${adminCred.name}"
+        password="${adminCred.password}";
       };
       ''
-
-let helmReleaseName = env:HELM_RELEASE_NAME ? "krb"
 
 let kafkaGssApiJaasConf =
       ''
@@ -40,8 +41,8 @@ let kafkaGssApiJaasConf =
 
       Client {
         org.apache.zookeeper.server.auth.DigestLoginModule required
-        username="${adminUser}"
-        password="${adminPassword}";
+        username="${adminCred.name}"
+        password="${adminCred.password}";
       };
       ''
 
@@ -50,16 +51,18 @@ let zkJaasConf =
       Server {
         org.apache.zookeeper.server.auth.DigestLoginModule required
         user_super="zookeeper"
-        user_${adminUser}="${adminPassword}";
+        user_${adminCred.name}="${adminCred.password}";
       };
       ''
+
+let jaasFileName = "jaas.conf"
 
 let plainKafkaCm =
       kubernetes.ConfigMap::{
       , metadata = kubernetes.ObjectMeta::{
         , name = Some "plain-kafka-jaas-configmap"
         }
-      , data = Some [ { mapKey = "jaas.conf", mapValue = kafkaPlainJaasConf } ]
+      , data = Some [ { mapKey = jaasFileName, mapValue = kafkaPlainJaasConf } ]
       }
 
 let krbKafkaCm =
@@ -67,13 +70,13 @@ let krbKafkaCm =
       , metadata = kubernetes.ObjectMeta::{
         , name = Some "krb-kafka-jaas-configmap"
         }
-      , data = Some [ { mapKey = "jaas.conf", mapValue = kafkaGssApiJaasConf } ]
+      , data = Some [ { mapKey = jaasFileName, mapValue = kafkaGssApiJaasConf } ]
       }
 
 let zkCm =
       kubernetes.ConfigMap::{
       , metadata = kubernetes.ObjectMeta::{ name = Some "zk-jaas-configmap" }
-      , data = Some [ { mapKey = "jaas.conf", mapValue = zkJaasConf } ]
+      , data = Some [ { mapKey = jaasFileName, mapValue = zkJaasConf } ]
       }
 
 in  [ plainKafkaCm, krbKafkaCm, zkCm ]

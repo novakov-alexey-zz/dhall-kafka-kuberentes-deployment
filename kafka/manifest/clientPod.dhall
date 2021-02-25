@@ -1,21 +1,17 @@
-let kubernetes =
+let k8s =
       https://raw.githubusercontent.com/dhall-lang/dhall-kubernetes/master/package.dhall sha256:532e110f424ea8a9f960a13b2ca54779ddcac5d5aa531f86d82f41f8f18d7ef1
 
-let k8s =
+let union =
       https://raw.githubusercontent.com/dhall-lang/dhall-kubernetes/master/typesUnion.dhall sha256:765d1b084fb57e29471622b85b9b43d65a5baef3427bc1bfbfdaaf1e40c8e813
 
 let SaslMechanisms = ./kafka/manifest/saslMechanisms.dhall
+let kafka = ./kafka/manifest/types.dhall
 
 let namespace = env:NAMESPACE as Text ? "test"
-
-let saslMechanism
-    : SaslMechanisms
-    = env:SASL_MECHANISM ? PLAIN
-
+let saslMechanism: SaslMechanisms = env:SASL_MECHANISM ? PLAIN
 let kdcRealm = env:REALM as Text ? "EXAMPLE.COM"
 
-let jassUser = "kafkabroker"
-let jaasPassword = "kafkabroker-secret"
+let jaasCreds: kafka.Credentials = { name = "kafkabroker", password = "kafkabroker-secret" }
 
 let kafkaPath = "/etc/kafka"
 
@@ -23,14 +19,14 @@ let jaasPlainConf =
       ''
       KafkaClient {
         org.apache.kafka.common.security.plain.PlainLoginModule required
-        username="${jassUser}"
-        password="${jaasPassword}";
+        username="${jaasCreds.name}"
+        password="${jaasCreds.password}";
       };
 
       Client {
         org.apache.zookeeper.server.auth.DigestLoginModule required
-        username="${jassUser}"
-        password="${jaasPassword}";
+        username="${jaasCreds.name}"
+        password="${jaasCreds.password}";
       };
       ''
 
@@ -75,14 +71,12 @@ let clientProps =
       ''
 
 let cmName = "${id}-kafka-client-conf"
-
 let clientPropsFile = "client.properties"
-
 let jaasConfFile = "jaas.conf"
 
 let clientConfMap =
-      kubernetes.ConfigMap::{
-      , metadata = kubernetes.ObjectMeta::{ name = Some cmName }
+      k8s.ConfigMap::{
+      , metadata = k8s.ObjectMeta::{ name = Some cmName }
       , data = Some
         [ { mapKey = jaasConfFile, mapValue = jaasConf }
         , { mapKey = clientPropsFile, mapValue = clientProps }
@@ -93,7 +87,7 @@ let mountTo =
       λ(mountPath : Text) →
       λ(name : Text) →
       λ(path : Optional Text) →
-        kubernetes.VolumeMount::{
+        k8s.VolumeMount::{
         , mountPath
         , name
         , readOnly = Some True
@@ -107,9 +101,7 @@ let mount =
         mountTo "${kafkaPath}/${fileName}" name path
 
 let krbConfFile = "krb5.conf"
-
 let producerFile = "producer.sh"
-
 let consumerFile = "consumer.sh"
 
 let helmReleaseName = env:HELM_RELEASE_NAME as Text ? "plain"
@@ -141,8 +133,8 @@ let consumerScript =
 let scriptCmName = "${id}-kafka-client-script-conf"
 
 let testScriptConfMap =
-      kubernetes.ConfigMap::{
-      , metadata = kubernetes.ObjectMeta::{ name = Some scriptCmName }
+      k8s.ConfigMap::{
+      , metadata = k8s.ObjectMeta::{ name = Some scriptCmName }
       , data = Some
         [ { mapKey = producerFile, mapValue = producerScript }
         , { mapKey = consumerFile, mapValue = consumerScript }
@@ -152,7 +144,7 @@ let testScriptConfMap =
 let cmVolume =
       λ(name : Text) →
       λ(keyAndPath : Text) →
-        kubernetes.ConfigMapVolumeSource::{
+        k8s.ConfigMapVolumeSource::{
         , name = Some name
         , items = Some
           [ { key = keyAndPath, path = keyAndPath, mode = None Integer } ]
@@ -177,38 +169,38 @@ let podMounts =
         saslMechanism
 
 let commonVolumes =
-      [ kubernetes.Volume::{
+      [ k8s.Volume::{
         , name = "jaas-conf"
         , configMap = Some (cmVolume cmName jaasConfFile)
         }
-      , kubernetes.Volume::{
+      , k8s.Volume::{
         , name = "client-props"
         , configMap = Some (cmVolume cmName clientPropsFile)
         }
-      , kubernetes.Volume::{
+      , k8s.Volume::{
         , name = "producer-script"
         , configMap = Some (cmVolume scriptCmName producerFile)
         }
-      , kubernetes.Volume::{
+      , k8s.Volume::{
         , name = "consumer-script"
         , configMap = Some (cmVolume scriptCmName consumerFile)
         }
-      , kubernetes.Volume::{
+      , k8s.Volume::{
         , name = "client-jks"
-        , secret = Some kubernetes.SecretVolumeSource::{
+        , secret = Some k8s.SecretVolumeSource::{
           , secretName = Some "kafka-client-jks"
           }
         }
       ]
 
 let krbVolumes =
-      [ kubernetes.Volume::{
+      [ k8s.Volume::{
         , name = "client-keytab"
-        , secret = Some kubernetes.SecretVolumeSource::{
+        , secret = Some k8s.SecretVolumeSource::{
           , secretName = Some "kafka-client-keytab"
           }
         }
-      , kubernetes.Volume::{
+      , k8s.Volume::{
         , name = "krb5-conf"
         , configMap = Some (cmVolume "krb5-conf" krbConfFile)
         }
@@ -220,11 +212,11 @@ let podVolumes =
         saslMechanism
 
 let pod =
-      kubernetes.Pod::{
-      , metadata = kubernetes.ObjectMeta::{ name = Some "${id}-kafka-client" }
-      , spec = Some kubernetes.PodSpec::{
+      k8s.Pod::{
+      , metadata = k8s.ObjectMeta::{ name = Some "${id}-kafka-client" }
+      , spec = Some k8s.PodSpec::{
         , containers =
-          [ kubernetes.Container::{
+          [ k8s.Container::{
             , name = "kafka-client"
             , image = Some "confluentinc/cp-kafka:5.5.0"
             , command = Some [ "sh", "-c", "exec tail -f /dev/null" ]
@@ -238,8 +230,8 @@ let pod =
 in  { apiVersion = "v1"
     , kind = "List"
     , items =
-      [ k8s.Pod pod
-      , k8s.ConfigMap clientConfMap
-      , k8s.ConfigMap testScriptConfMap
+      [ union.Pod pod
+      , union.ConfigMap clientConfMap
+      , union.ConfigMap testScriptConfMap
       ]
     }
