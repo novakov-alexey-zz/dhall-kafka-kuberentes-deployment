@@ -54,10 +54,10 @@ kafka-client-jks:
 	  --from-file=truststore.jks=./kafka/secret/kafka.producer.truststore.jks -n $(NAMESPACE)
 kafka-create-configs: kafka-broker-jks kafka-client-jks	
 	dhall-to-yaml --documents < ./krb/krb5.dhall | kubectl create -n $(NAMESPACE) -f -
-	dhall-to-yaml --documents < ./kafka/manifest/brokerConf.dhall | kubectl create -n $(NAMESPACE) -f -
+	dhall-to-yaml --documents < ./kafka/dhall/brokerConf.dhall | kubectl create -n $(NAMESPACE) -f -
 kafka-delete-configs:	
 	dhall-to-yaml --documents < ./krb/krb5.dhall | kubectl delete -n $(NAMESPACE) -f -
-	dhall-to-yaml --documents < ./kafka/manifest/brokerConf.dhall | kubectl delete -n $(NAMESPACE) -f -
+	dhall-to-yaml --documents < ./kafka/dhall/brokerConf.dhall | kubectl delete -n $(NAMESPACE) -f -
 kafka-build-deps:
 	cd kafka/helm/cp-kafka && helm dep update
 	cd kafka/helm/cp-kafka && helm dep build
@@ -75,10 +75,10 @@ undeploy-kafka:
 #### Client
 deploy-kafka-client:
 	SASL_MECHANISM="<PLAIN|GSSAPI>.PLAIN" \
-		dhall-to-yaml < ./kafka/manifest/clientPod.dhall | kubectl create -n $(NAMESPACE) -f -
+		dhall-to-yaml < ./kafka/dhall/clientPod.dhall | kubectl create -n $(NAMESPACE) -f -
 undeploy-kafka-client:	
 	SASL_MECHANISM="<PLAIN|GSSAPI>.PLAIN" \
-		dhall-to-yaml < ./kafka/manifest/clientPod.dhall | kubectl delete -n $(NAMESPACE) -f -
+		dhall-to-yaml < ./kafka/dhall/clientPod.dhall | kubectl delete -n $(NAMESPACE) -f -
 
 #################### Security Option 2: SASL_SSL, SASL mechanism: GSSAPI
 #### Broker
@@ -94,11 +94,11 @@ undeploy-kafka-krb:
 deploy-kafka-krb-client:
 	SASL_MECHANISM="<PLAIN|GSSAPI>.GSSAPI" \
 	HELM_RELEASE_NAME="$(KRB_RELEASE)" \
-		dhall-to-yaml < ./kafka/manifest/clientPod.dhall | kubectl create -n $(NAMESPACE) -f -
+		dhall-to-yaml < ./kafka/dhall/clientPod.dhall | kubectl create -n $(NAMESPACE) -f -
 undeploy-kafka-krb-client:	
 	SASL_MECHANISM="<PLAIN|GSSAPI>.GSSAPI" \
 	HELM_RELEASE_NAME=$(KRB_RELEASE) \
-		dhall-to-yaml < ./kafka/manifest/clientPod.dhall | kubectl delete -n $(NAMESPACE) -f -
+		dhall-to-yaml < ./kafka/dhall/clientPod.dhall | kubectl delete -n $(NAMESPACE) -f -
 #################### KAFKA Deployment End ###################################################################### 
 
 ################ Kafka Schema Registry 
