@@ -49,7 +49,7 @@ make kafka-create-configs
 Install Kafka:
 
 ```bash
-deploy-kafka
+make deploy-kafka
 ```
 
 Install Kafka client pod for testing purpose:
